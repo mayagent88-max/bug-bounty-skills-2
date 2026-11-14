@@ -1,0 +1,5 @@
+name: "dex-aggregator"
+title: "DEX Aggregator Quote Check"
+description: "Check LI.FI and OpenOcean quotes when a wallet router says no liquidity, so a token is not declared unsellable after one failed route."
+category: "Work and knowledge"
+include_in_prompt: false

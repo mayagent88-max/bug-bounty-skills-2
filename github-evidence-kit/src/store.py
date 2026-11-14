@@ -1,0 +1,302 @@
+"""
+Evidence Store - Persistent storage for evidence collections.
+
+Provides save/load/query functionality for evidence objects.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from pathlib import Path
+
+from .schema.common import EvidenceSource
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .schema import AnyEvidence, AnyEvent, AnyObservation
+    from collections.abc import Callable, Iterator, Sequence
+    from datetime import datetime
+
+logger = logging.getLogger(__name__)
+
+
+class EvidenceStore:
+    """
+    A simple store for managing collections of evidence.
+
+    Example:
+        store = EvidenceStore()
+        store.add(commit_observation)
+        store.save("evidence.json")
+
+        store = EvidenceStore.load("evidence.json")
+        commits = store.filter(observation_type="commit")
+    """
+
+    def __init__(self, evidence: Sequence[AnyEvidence] | None = None) -> None:
+        self._evidence: list[AnyEvidence] = list(evidence) if evidence else []
+        self._by_id: dict[str, AnyEvidence] = {e.evidence_id: e for e in self._evidence}
+
+    def add(self, evidence: AnyEvidence) -> None:
+        """Add evidence to the store (replaces existing with same ID).
+
+        Ids are deterministic per source row (parsers key them with
+        the row timestamp + lifecycle action), so a same-id add is a
+        re-ingest and replacement is the idempotent outcome. A
+        same-id add whose CONTENT differs is a keying collision —
+        replacement would silently destroy a timeline event, so it is
+        logged loudly before the (documented) replace happens.
+        """
+        if evidence.evidence_id in self._by_id:
+            prior = self._by_id[evidence.evidence_id]
+            if prior != evidence:
+                logger.warning(
+                    "evidence-id collision: %r replaces DIFFERENT "
+                    "content under the same id — a timeline event is "
+                    "being destroyed; the producer's id is "
+                    "under-keyed (prior what=%r, new what=%r)",
+                    evidence.evidence_id,
+                    getattr(prior, "what", "?"),
+                    getattr(evidence, "what", "?"),
+                )
+            self._evidence = [e for e in self._evidence if e.evidence_id != evidence.evidence_id]
+        self._evidence.append(evidence)
+        self._by_id[evidence.evidence_id] = evidence
+
+    def add_all(self, evidence_list: Sequence[AnyEvidence]) -> None:
+        """Add multiple evidence objects to the store."""
+        for e in evidence_list:
+            self.add(e)
+
+    def get(self, evidence_id: str) -> AnyEvidence | None:
+        """Get evidence by ID."""
+        return self._by_id.get(evidence_id)
+
+    def remove(self, evidence_id: str) -> bool:
+        """Remove evidence by ID. Returns True if removed."""
+        if evidence_id in self._by_id:
+            del self._by_id[evidence_id]
+            self._evidence = [e for e in self._evidence if e.evidence_id != evidence_id]
+            return True
+        return False
+
+    def clear(self) -> None:
+        """Remove all evidence from the store."""
+        self._evidence.clear()
+        self._by_id.clear()
+
+    def __len__(self) -> int:
+        return len(self._evidence)
+
+    def __iter__(self) -> Iterator[AnyEvidence]:
+        return iter(self._evidence)
+
+    def __contains__(self, evidence_id: str) -> bool:
+        return evidence_id in self._by_id
+
+    @property
+    def events(self) -> list[AnyEvent]:
+        """Get all events."""
+        return [e for e in self._evidence if hasattr(e, "event_type")]
+
+    @property
+    def observations(self) -> list[AnyObservation]:
+        """Get all observations."""
+        return [e for e in self._evidence if hasattr(e, "observation_type")]
+
+    def filter(
+        self,
+        *,
+        event_type: str | None = None,
+        observation_type: str | None = None,
+        source: EvidenceSource | str | None = None,
+        repo: str | None = None,
+        after: datetime | None = None,
+        before: datetime | None = None,
+        predicate: Callable[[AnyEvidence], bool] | None = None,
+    ) -> list[AnyEvidence]:
+        """Filter evidence by various criteria."""
+
+        def matches(e: AnyEvidence) -> bool:
+            if event_type and getattr(e, "event_type", None) != event_type:
+                return False
+            if observation_type and getattr(e, "observation_type", None) != observation_type:
+                return False
+            if source:
+                src = source if isinstance(source, EvidenceSource) else EvidenceSource(source)
+                if e.verification.source != src:
+                    return False
+            if repo:
+                repo_obj = getattr(e, "repository", None)
+                if not repo_obj or repo_obj.full_name != repo:
+                    return False
+            ts = self._get_timestamp(e)
+            if ts:
+                if after and ts < after:
+                    return False
+                if before and ts > before:
+                    return False
+            return not (predicate and not predicate(e))
+
+        return [e for e in self._evidence if matches(e)]
+
+    def _get_timestamp(self, evidence: AnyEvidence) -> datetime | None:
+        """Get the primary timestamp for an evidence object."""
+        if hasattr(evidence, "when"):
+            return evidence.when
+        if hasattr(evidence, "original_when") and evidence.original_when:
+            return evidence.original_when
+        if hasattr(evidence, "observed_when"):
+            return evidence.observed_when
+        return None
+
+    def to_json(self, indent: int = 2) -> str:
+        """Serialize store to JSON string."""
+        data = [e.model_dump(mode="json") for e in self._evidence]
+        return json.dumps(data, indent=indent, default=str)
+
+    def save(self, path: str | Path) -> None:
+        """Save store to JSON file (atomic write).
+
+        Pre-fix `path.write_text(...)` used `open(path, 'w')`
+        internally — truncate-then-write. A crash, OOM kill, or
+        SIGTERM between truncate and write left a partially-written
+        evidence file. Forensic investigations that resumed against
+        a corrupted store either failed to load (JSONDecodeError) or
+        loaded a truncated set, dropping evidence silently. Both
+        modes destroy the audit trail the store is supposed to
+        preserve.
+
+        Atomic-write pattern: serialise to `<path>.tmp.<pid>` in the
+        same directory then `os.replace` (atomic per POSIX). PID
+        suffix disambiguates concurrent saves from different
+        processes. On any write failure, clean up the staging file
+        so we don't leak `.tmp.<pid>` siblings across crashes.
+        """
+        import os
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        body = self.to_json()
+        tmp = path.with_suffix(path.suffix + f".tmp.{os.getpid()}")
+        try:
+            tmp.write_text(body)
+            os.replace(tmp, path)
+        except Exception:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+            raise
+
+    # Cap on JSON-string input. Pre-fix `from_json` accepted any
+    # length string. A hostile or corrupted evidence file (a 10 GB
+    # JSON dump misnamed, an attacker-supplied payload routed
+    # through a CI artifact ingest, a malformed recovery dump) would
+    # OOM the process during `json.loads`'s parse. Real evidence
+    # bundles top out at low MB (the largest pinned-evidence forensic
+    # report observed in the wild is ~8 MB); 100 MB cap leaves 10x
+    # headroom while bounding pathological input.
+    _FROM_JSON_MAX_BYTES = 100 * 1024 * 1024
+
+    @classmethod
+    def from_json(cls, json_str: str) -> EvidenceStore:
+        """Create store from JSON string."""
+        if len(json_str) > cls._FROM_JSON_MAX_BYTES:
+            msg = (
+                f"EvidenceStore.from_json: input exceeds "
+                f"{cls._FROM_JSON_MAX_BYTES} bytes — refusing to load "
+                f"(pathological input bounds enforced)"
+            )
+            raise ValueError(msg)
+        from . import load_evidence_from_json
+        data = json.loads(json_str)
+        return cls([load_evidence_from_json(item) for item in data])
+
+    @classmethod
+    def load(cls, path: str | Path) -> EvidenceStore:
+        """Load store from JSON file.
+
+        Explicit `encoding="utf-8-sig"` so:
+          * The read uses UTF-8 regardless of the host locale's default
+            encoding (`locale.getpreferredencoding()` returns cp1252
+            on a Windows host, latin-1 on some C-locale containers).
+            Pre-fix the bare `read_text()` would mangle non-ASCII
+            bytes in evidence content (commit messages with
+            accented chars, unicode usernames, BOM-prefixed JSON
+            from some tools) silently or raise UnicodeDecodeError.
+          * `utf-8-sig` is a strict superset of `utf-8` — identical
+            for BOM-less files, transparent for BOM-prefixed ones.
+            Some Windows-edited evidence JSON files carry a leading
+            BOM that the JSON parser would reject as
+            "Expecting value: line 1 column 1 (char 0)" with no hint
+            that the encoding is the actual problem.
+        """
+        return cls.from_json(Path(path).read_text(encoding="utf-8-sig"))
+
+    def merge(self, other: EvidenceStore) -> None:
+        """Merge another store into this one."""
+        self.add_all(list(other))
+
+    def summary(self) -> dict:
+        """Get a summary of the store contents."""
+        event_counts: dict[str, int] = {}
+        obs_counts: dict[str, int] = {}
+        source_counts: dict[str, int] = {}
+
+        for e in self._evidence:
+            if hasattr(e, "event_type"):
+                event_counts[e.event_type] = event_counts.get(e.event_type, 0) + 1
+            if hasattr(e, "observation_type"):
+                obs_counts[e.observation_type] = obs_counts.get(e.observation_type, 0) + 1
+            src = e.verification.source.value
+            source_counts[src] = source_counts.get(src, 0) + 1
+
+        return {
+            "total": len(self._evidence),
+            "events": event_counts,
+            "observations": obs_counts,
+            "by_source": source_counts,
+        }
+
+    def corroboration_gaps(self) -> list[dict]:
+        """Identify commit observations lacking cross-source corroboration.
+
+        Groups ``CommitObservation`` records by ``sha`` and returns
+        those observed by only one evidence source.  The report
+        generator and verifier use this to flag single-sourced commits
+        whose provenance an attacker could forge undetected.
+        """
+        from collections import defaultdict
+        commits_by_sha: dict[str, list] = defaultdict(list)
+        for e in self._evidence:
+            if getattr(e, "observation_type", None) == "commit":
+                sha = getattr(e, "sha", None)
+                if sha:
+                    commits_by_sha[sha].append(e)
+
+        gaps = []
+        for sha, records in commits_by_sha.items():
+            sources = {r.verification.source for r in records}
+            if len(sources) < 2:
+                gaps.append({
+                    "sha": sha,
+                    "sources": [s.value for s in sources],
+                    "count": len(records),
+                })
+        return gaps
+
+    def verify_all(self) -> tuple[bool, list[str]]:
+        """Verify all evidence against their original sources.
+
+        Skipped checks (no credentials, unsupported source) are carried
+        as ``[warning] ...`` entries in the returned message list so a
+        run where verification could not actually happen never reads as
+        fully-verified with zero trace.
+        """
+        from .verifiers.consistency import ConsistencyVerifier
+        verifier = ConsistencyVerifier()
+        result = verifier.verify_all(self._evidence)
+        messages = list(result.errors)
+        messages.extend(f"[warning] {w}" for w in result.warnings)
+        return result.is_valid, messages

@@ -1,0 +1,184 @@
+"""
+GH Archive Client for BigQuery.
+"""
+from __future__ import annotations
+
+import json
+import os
+from typing import Any
+
+import google.auth
+from google.cloud import bigquery
+from google.oauth2 import service_account
+
+from ..schema.common import EvidenceSource
+
+# Per-query billing cap, mirroring the typed wrapper's default
+# (core/forensics/bq_query.py DEFAULT_MAX_BYTES_BILLED = 200 GB).
+# Verification runs one whole-day GH Archive scan per evidence item
+# and calls this client DIRECTLY (not through the wrapper), so the
+# cap must live here too — without it a mis-scoped query bills
+# unbounded bytes.
+_MAX_BYTES_BILLED = 200 * 1000**3
+
+
+class GHArchiveClient:  # nosemgrep: generic.secrets.security.detected-google-gcm-service-account.detected-google-gcm-service-account
+    """Client for GH Archive BigQuery queries.
+
+    Credentials via GOOGLE_APPLICATION_CREDENTIALS env var:
+    - File path: /path/to/service-account.json
+    - Inline JSON: {"type":"service_account","project_id":"..."}
+
+    Falls back to Application Default Credentials (gcloud, metadata server).
+
+    (The ``service_account`` token in the docstring above is a
+    documentation placeholder, not a real credential. Suppressed
+    above to keep the example clear in operator-facing help text.)
+    """
+
+    def __init__(self, project_id: str | None = None) -> None:
+        self.project_id = project_id
+        self._client: bigquery.Client | None = None
+
+    @property
+    def source(self) -> EvidenceSource:
+        return EvidenceSource.GHARCHIVE
+
+    def _get_client(self) -> bigquery.Client:
+        if self._client is None:
+            credentials, project = self._resolve_credentials()
+            self._client = bigquery.Client(
+                credentials=credentials,
+                project=self.project_id or project,
+            )
+        return self._client
+
+    # Inline JSON credentials path can carry an arbitrarily large
+    # service-account key. A 100 MB string is handed to `json.loads`
+    # which loads the whole thing into memory before failing — and a
+    # 1 GB string OOMs the process. Real service-account JSON files
+    # are <4 KB; cap well above that to leave headroom for unusual
+    # multi-key formats while refusing pathological inputs.
+    _CREDS_INLINE_MAX = 64 * 1024
+
+    def _resolve_credentials(self) -> tuple[Any, str | None]:
+        """Resolve credentials - supports file path or inline JSON."""
+        scopes = ["https://www.googleapis.com/auth/bigquery"]
+        creds_value = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "")
+
+        # Inline JSON (starts with '{'). Cap the input so a hostile
+        # operator-supplied env var doesn't OOM us.
+        if creds_value.startswith("{"):
+            if len(creds_value) > self._CREDS_INLINE_MAX:
+                msg = (
+                    "GOOGLE_APPLICATION_CREDENTIALS inline JSON exceeds "
+                    f"{self._CREDS_INLINE_MAX} bytes — service-account "
+                    "keys are typically <4 KB; refuse pathological input"
+                )
+                raise ValueError(msg)
+            info = json.loads(creds_value)
+            credentials = service_account.Credentials.from_service_account_info(
+                info, scopes=scopes
+            )
+            return credentials, info.get("project_id")
+
+        # File path or ADC fallback
+        return google.auth.default(scopes=scopes)
+
+    # Default row cap. Callers making absence claims must compare the
+    # result count against the limit they passed: a result that HIT the
+    # cap is truncated and proves nothing about rows beyond it.
+    DEFAULT_LIMIT = 1000
+
+    def query_events(
+        self,
+        repo: str | None = None,
+        actor: str | None = None,
+        event_type: str | None = None,
+        from_date: str = "",
+        to_date: str | None = None,
+        limit: int = DEFAULT_LIMIT,
+    ) -> list[dict[str, Any]]:
+        """Query GH Archive for events using parameterized queries.
+
+        ``from_date`` accepts two granularities:
+
+        - 12-digit ``YYYYMMDDHHMM``: query the day table filtered to the
+          exact hour and minute (the original behaviour).
+        - 8-digit ``YYYYMMDD``: query the whole day table with no
+          hour/minute filter. This is the granularity the recover_*
+          collectors need — they match candidate rows against the full
+          timestamp themselves.
+
+        ``limit`` caps the rows returned. When a result's length equals
+        ``limit`` it is truncated — callers must not conclude absence
+        from it.
+        """
+        client = self._get_client()
+
+        # LIMIT cannot be parameterized; validate to a bounded int
+        # before interpolation.
+        limit = int(limit)
+        if not 1 <= limit <= 100_000:
+            msg = f"limit must be between 1 and 100000, got {limit}"
+            raise ValueError(msg)
+
+        # Build table reference - use daily table.
+        # Table names can't be parameterized, but the format is
+        # validated to digits below before interpolation.
+        if not from_date.isdigit() or len(from_date) not in (8, 12):
+            msg = (
+                f"Invalid date format: {from_date!r} — expected 12-digit "
+                "YYYYMMDDHHMM (exact minute) or 8-digit YYYYMMDD (whole day)"
+            )
+            raise ValueError(msg)
+        day = from_date[:8]
+        table = f"`githubarchive.day.{day}`"
+
+        # Build WHERE clauses with parameterized values
+        clauses = []
+        params = []
+
+        # Filter by hour and minute using created_at timestamp — only
+        # when the caller asked for exact-minute granularity.
+        if len(from_date) == 12:
+            hour = int(from_date[8:10])
+            minute = int(from_date[10:12])
+            clauses.append("EXTRACT(HOUR FROM created_at) = @hour")
+            clauses.append("EXTRACT(MINUTE FROM created_at) = @minute")
+            params.append(bigquery.ScalarQueryParameter("hour", "INT64", hour))
+            params.append(bigquery.ScalarQueryParameter("minute", "INT64", minute))
+
+        if repo:
+            clauses.append("repo.name = @repo")
+            params.append(bigquery.ScalarQueryParameter("repo", "STRING", repo))
+        if actor:
+            clauses.append("actor.login = @actor")
+            params.append(bigquery.ScalarQueryParameter("actor", "STRING", actor))
+        if event_type:
+            clauses.append("type = @event_type")
+            params.append(bigquery.ScalarQueryParameter("event_type", "STRING", event_type))
+
+        where = " AND ".join(clauses) if clauses else "1=1"
+
+        query = f"""
+        SELECT
+            type,
+            created_at,
+            actor.login as actor_login,
+            actor.id as actor_id,
+            repo.name as repo_name,
+            repo.id as repo_id,
+            payload
+        FROM {table}
+        WHERE {where}
+        ORDER BY created_at
+        LIMIT {limit}
+        """
+
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=params,
+            maximum_bytes_billed=_MAX_BYTES_BILLED,
+        )
+        results = client.query(query, job_config=job_config)
+        return [dict(row) for row in results]

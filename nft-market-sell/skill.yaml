@@ -1,0 +1,5 @@
+name: "nft-market-sell"
+title: "Sell an NFT Across Markets"
+description: "Verify an NFT, compare floors and fees across several markets, and sell it on the best net route instead of stopping at one marketplace."
+category: "Work and knowledge"
+include_in_prompt: false

@@ -1,0 +1,21 @@
+name: onchain_call_decode_before_execute
+title: Decode Before an On Chain Call
+description: Decode raw calldata, verify the contract and the fee, and get explicit approval before running any on chain call.
+category: Finance
+include_in_prompt: false
+skill_improvement:
+  managed: true
+  status: active
+  measurement:
+    proxy_metric_id: objective_success_rate
+    success_criterion: In post-install on chain call tasks, every raw calldata call is decoded and shown with its function, target, value and fee before execution, the contract is verified against official docs or the explorer, and no execution runs without a concise explicit yes after that preview.
+    window_days: 30
+  evidence_handles:
+  - assistant-msg-ac4b887f
+  - assistant-msg-8cd8135d
+  - 0x7cf9313310d720683e9f375fc238a0aef2986014fceb35bf486260abc359afe1
+  needs_review: false
+  rationale: 'The Imprint join (assistant-msg-ac4b887f and assistant-msg-8cd8135d, tx 0x7cf9313310d720683e9f375fc238a0aef2986014fceb35bf486260abc359afe1) was executed from a pasted raw instruction to contract 0x2306E841063c1D27b8c89E73A9F8B1d0b0225a51 without decoding its calldata and without a gas limit in the preview. The transaction was gas only and harmless, but the synthesis records the process as overreaching with the repair thread open, and the corrected line is to decode the input data, verify the contract against official docs, show the fee, then get a concise explicit yes. No existing skill covers this: verify_before_asserting covers claims, channels, timing and token identity by contract, free_mint_wallet_connect covers only a mint contract check and connect step, and token_arrival_follow_up covers only arrival polling. A narrow new skill codifies the decode, verify, show fee and explicit yes sequence without duplicating those skills.'
+  review_after: 2026-12-08T07:35:27.605925+00:00
+  reviewed_at: 2026-11-08T07:35:27.605925+00:00
+  run_id: sirun_0f75a184796448779980ff17293a40b2

@@ -1,0 +1,5 @@
+name: "free_mint_execution"
+title: "Execute a verified free mint end to end"
+description: "Verify a free mint live, execute it, report the transaction hash at once, and revoke the approval, with a clear stop rule for anything unverified."
+category: "Finance"
+include_in_prompt: false

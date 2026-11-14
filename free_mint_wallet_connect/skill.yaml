@@ -1,0 +1,26 @@
+name: free_mint_wallet_connect
+title: Connect a Wallet for a Timed Free Mint
+description: Give a user an actionable wallet connect step for a timed free mint, so a plain link does not cost the window.
+category: Finance
+include_in_prompt: false
+skill_improvement:
+  managed: true
+  status: active
+  evidence_handles:
+  - assistant-msg-dbe330cd
+  - assistant-msg-46849525
+  - assistant-msg-63704c2c
+  - assistant-msg-a9ab2781
+  - assistant-msg-602dd204
+  - assistant-msg-fcb96263
+  - assistant-msg-0e4d564f
+  - assistant-msg-40e429e7
+  measurement:
+    proxy_metric_id: objective_success_rate
+    success_criterion: In post-install timed free mint tasks, every report gives an actionable direct sign link or a QR fallback and never a plain project link alone, and no window is missed because the connect step was missing.
+    window_days: 30
+  needs_review: false
+  rationale: 'Fire Ball was reported without execution or a sign path (assistant-msg-dbe330cd) and was already free by about 14:35 (assistant-msg-46849525). The user then codified the missing mechanism: act on gas directly (assistant-msg-63704c2c), give a QR or direct sign path rather than a plain link (assistant-msg-a9ab2781), with the browser sign route and the wallet command line route kept distinct (assistant-msg-602dd204, assistant-msg-fcb96263) and the direct sign link first with QR as fallback (assistant-msg-0e4d564f, assistant-msg-40e429e7). Skill search and reads show no existing skill covers this connect step: dex-aggregator covers multi-router liquidity, nft-market-sell covers multi-market sale comparison, and the managed token_arrival_follow_up covers polling after a claim, so this is a distinct reusable method and not a duplicate. Other window signals were checked and not proposed: the Ptah tag omission was a single corrected draft, Agent Cards maximisation is project specific, the hourly Telegram watches were operating correctly with timed holds, and the deterministic objective-loop candidates target system prompts, which this loop never changes.'
+  review_after: 2026-12-04T05:14:18.520004+00:00
+  reviewed_at: 2026-11-04T05:14:18.520004+00:00
+  run_id: sirun_521c197e7be342df9d6a5ec681d8470b
