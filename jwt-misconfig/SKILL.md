@@ -9,12 +9,8 @@ description: >
   HMAC secret, unverified kid values used in file reads or SQL queries, and JWT cracking
   with short secrets.
 license: Apache-2.0
-compatibility: Designed for Claude Code. Tools: Burp Suite JWT Editor, jwt_tool, hashcat.
-metadata:
-  category: web
-  version: "0.1"
-  source: https://github.com/BehiSecc/VibeSec-Skill
-  source_types: blog_post
+compatibility: "Designed for Claude Code. Tools: Burp Suite JWT Editor, jwt_tool, hashcat."
+metadata: "category: web\n  version: \"0.1\"\n  source: https://github.com/BehiSecc/VibeSec-Skill\n  source_types: blog_post"
 ---
 
 # JWT Misconfiguration

@@ -1,6 +1,6 @@
 ---
 name: looking-up-wordpress-plugins
-description: Looks up wordpress.org plugins for bug bounty work: real install range and Wordfence band, versions with release dates, closed status, source code of any version, diffs between versions or of one SVN commit, and targets in an install band. Use when a task names a WordPress plugin slug, needs a vulnerable version's code, asks what a patch changed, or wants plugins to hunt in an install range.
+description: "Looks up wordpress.org plugins for bug bounty work: real install range and Wordfence band, versions with release dates, closed status, source code of any version, diffs between versions or of one SVN commit, and targets in an install band. Use when a task names a WordPress plugin slug, needs a vulnerable version's code, asks what a patch changed, or wants plugins to hunt in an install range."
 ---
 
 # Looking up WordPress plugins

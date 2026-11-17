@@ -1,3 +1,7 @@
+---
+name: domain-model
+description: "Domain Model"
+---
 # Domain Model
 
 ## Overview

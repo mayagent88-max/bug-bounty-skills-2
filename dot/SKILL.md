@@ -1,7 +1,7 @@
 ---
 name: dot
 description: "Blast-radius analysis of Solana program upgrades. Watches BPFLoaderUpgradeable for bytecode changes, reconstructs the on-chain CPI dependency graph from real execution traces, scores the upgrade into tiers P0 to P3 with the arithmetic and an evidence ledger behind it, and runs as a budget-bounded agent that stops early, reports partial graphs as partial, and asks for more budget instead of returning a thin answer. Covers the on-chain supply chain that static analysis cannot see: who calls this program, and how much value routes through them. Triggers on 'blast radius of a Solana program', 'what depends on this program', 'watch a Solana program upgrade', 'this program just upgraded', 'Solana CPI graph', 'who breaks if this program changes', 'supply chain risk for this Solana protocol', 'is this upgrade dangerous', 'check the upgrade authority', 'Solana programdata changed'."
-paths: **/*.json, **/*.ts, **/*.md
+paths: "**/*.json, **/*.ts, **/*.md"
 ---
 
 # Dot

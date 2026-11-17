@@ -1,3 +1,7 @@
+---
+name: godmod
+description: "Security Researcher (Pashov/Myers level)"
+---
 mkdir -p ~/.claude/skills/godmod
 cat > ~/.claude/skills/godmod/SKILL.md << 'EOF'
 ---

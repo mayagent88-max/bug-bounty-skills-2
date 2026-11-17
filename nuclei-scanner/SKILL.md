@@ -1,3 +1,7 @@
+---
+name: nuclei-scanner
+description: "Nuclei Scanner"
+---
 # Nuclei Scanner
 
 ## Overview

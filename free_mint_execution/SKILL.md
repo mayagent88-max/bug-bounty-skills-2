@@ -1,3 +1,7 @@
+---
+name: free_mint_execution
+description: "Execute a verified free mint end to end"
+---
 # Execute a verified free mint end to end
 
 ## Pass the execution gate first

@@ -1,6 +1,6 @@
 ---
 name: eip712-signature-verification
-description: Verify off-chain signatures safely: EIP-712 domain binding, single-use nonces, expiry, and malleability rejection. Use whenever a contract accepts a signed message (permits, meta-tx, attestations, claims, gasless approvals).
+description: "Verify off-chain signatures safely: EIP-712 domain binding, single-use nonces, expiry, and malleability rejection. Use whenever a contract accepts a signed message (permits, meta-tx, attestations, claims, gasless approvals)."
 ---
 # EIP-712 signature verification
 

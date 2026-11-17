@@ -1,3 +1,7 @@
+---
+name: onchain_call_decode_before_execute
+description: "Decode a raw on chain call before you run it"
+---
 # Decode a raw on chain call before you run it
 
 ## Decode the calldata first

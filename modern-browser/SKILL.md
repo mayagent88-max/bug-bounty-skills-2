@@ -1,3 +1,7 @@
+---
+name: modern-browser
+description: "Modern Browser"
+---
 # Modern Browser
 
 ## Overview

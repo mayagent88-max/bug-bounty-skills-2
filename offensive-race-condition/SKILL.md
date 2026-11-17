@@ -1,3 +1,7 @@
+---
+name: offensive-race-condition
+description: "SKILL: Race Conditions"
+---
 # SKILL: Race Conditions
 
 ## Metadata

@@ -1,6 +1,6 @@
 ---
 name: krait
-description: AI-first security auditor for Solidity smart contracts. 4-phase pipeline (recon → detection → state analysis → verification) with 101 heuristics, 15 detection modules, 8 kill gates, and a 6-field methodology audit trail per finding (v8.1). Last measured version (v8): 10 true positives, 0 false positives and 15.2% recall on a 5-contest blind batch of past Code4rena contests, self-scored.
+description: "AI-first security auditor for Solidity smart contracts. 4-phase pipeline (recon → detection → state analysis → verification) with 101 heuristics, 15 detection modules, 8 kill gates, and a 6-field methodology audit trail per finding (v8.1). Last measured version (v8): 10 true positives, 0 false positives and 15.2% recall on a 5-contest blind batch of past Code4rena contests, self-scored."
 ---
 
 # Krait — AI Security Auditor

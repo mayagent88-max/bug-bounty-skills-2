@@ -9,12 +9,8 @@ description: >
   GraphQL mutations. Detects privilege escalation via role/admin/isAdmin fields, plan
   upgrades via subscription fields, and horizontal access via ownerId/userId injection.
 license: Apache-2.0
-compatibility: Designed for Claude Code. Tools: Burp Suite.
-metadata:
-  category: web
-  version: "0.1"
-  source: https://github.com/BehiSecc/VibeSec-Skill
-  source_types: blog_post
+compatibility: "Designed for Claude Code. Tools: Burp Suite."
+metadata: "category: web\n  version: \"0.1\"\n  source: https://github.com/BehiSecc/VibeSec-Skill\n  source_types: blog_post"
 ---
 
 # Mass Assignment

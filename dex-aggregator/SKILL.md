@@ -1,3 +1,7 @@
+---
+name: dex-aggregator
+description: "DEX Aggregator Quote Check"
+---
 # DEX Aggregator Quote Check
 
 Use this skill when a swap through one router fails, especially when the Binance Agentic Wallet CLI says "No liquidity available", and the user still wants to sell a token on the same chain. It checks other DEX aggregators before you tell the user a token cannot be sold.

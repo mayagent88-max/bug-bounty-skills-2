@@ -1,3 +1,7 @@
+---
+name: nft-market-sell
+description: "Sell an NFT Across Markets"
+---
 # Sell an NFT Across Markets
 
 Use this skill when the user wants to sell an NFT from the Binance Agentic Wallet, or when a single marketplace shows no listing, no floor, or no buyer. Check several markets before you say an NFT cannot be sold, and never say a global no-sale result from one marketplace alone.

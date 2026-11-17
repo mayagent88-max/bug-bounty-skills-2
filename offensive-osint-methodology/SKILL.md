@@ -1,3 +1,7 @@
+---
+name: offensive-osint-methodology
+description: "SKILL: OSINT Methodology"
+---
 # SKILL: OSINT Methodology
 
 ## Metadata

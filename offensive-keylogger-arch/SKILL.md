@@ -1,3 +1,7 @@
+---
+name: offensive-keylogger-arch
+description: "SKILL: Novel research"
+---
 # SKILL: Novel research
 
 ## Metadata

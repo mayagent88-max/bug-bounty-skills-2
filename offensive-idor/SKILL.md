@@ -1,3 +1,7 @@
+---
+name: offensive-idor
+description: "SKILL: Insecure Direct Object References (IDOR)"
+---
 # SKILL: Insecure Direct Object References (IDOR)
 
 ## Metadata

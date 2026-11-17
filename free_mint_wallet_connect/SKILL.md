@@ -1,3 +1,7 @@
+---
+name: free_mint_wallet_connect
+description: "Connect a wallet for a timed free mint"
+---
 # Connect a wallet for a timed free mint
 
 ## Prepare the connect step before the window

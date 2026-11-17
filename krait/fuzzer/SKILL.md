@@ -1,3 +1,7 @@
+---
+name: fuzzer
+description: "Krait Fuzzer — Invariant Extraction & Testing Methodology"
+---
 # Krait Fuzzer — Invariant Extraction & Testing Methodology
 
 This skill defines how to extract invariants from smart contracts and generate Foundry fuzz tests to verify them.
